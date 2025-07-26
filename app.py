@@ -29,7 +29,8 @@ def extract_text_from_pdf(pdf):
     return text
 
 def split_text(text):
-    splitter = CharacterTextSplitter(separator="\n", chunk_size=1000, chunk_overlap=200)
+    splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
+
     return splitter.split_text(text)
 
 def create_embeddings():
