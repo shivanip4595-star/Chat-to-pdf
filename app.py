@@ -1,4 +1,9 @@
 import os
+import asyncio
+import sys
+
+if sys.platform.startswith('win') and sys.version_info >= (3, 8):
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 import streamlit as st
 from dotenv import load_dotenv
 from PyPDF2 import PdfReader
