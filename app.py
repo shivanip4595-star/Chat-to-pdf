@@ -84,8 +84,8 @@ def handle_user_input(query):
 
 # Streamlit UI
 def main():
-    st.set_page_config("Chat with PDF - Gemini")
-    st.title("📄 Chat with PDF using Gemini Pro")
+    st.set_page_config("Chat with PDF")
+    st.title("📄 Chat with PDF")
 
     user_question = st.text_input("Ask a question based on your PDF:")
     if user_question:
