@@ -6,28 +6,27 @@ from PyPDF2 import PdfReader
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores import FAISS
-from langchain.chains.question_answering import load_qa_chain
-from langchain.prompts import PromptTemplate
 from langchain.chains import RetrievalQA
 
 # Load environment variables
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-# Initialize embeddings and model
+# Initialize Gemini embeddings
 def get_embeddings():
     return GoogleGenerativeAIEmbeddings(
         model="models/embedding-001",
         google_api_key=GOOGLE_API_KEY
     )
 
+# Use Gemini Pro (correct model name!)
 def get_llm():
     return ChatGoogleGenerativeAI(
-        model="models/chat-bison-001",
+        model="models/gemini-pro",  # ✅ This is the correct model name
         google_api_key=GOOGLE_API_KEY
     )
 
-# Extract text from uploaded PDF
+# Extract text from PDF
 def extract_text_from_pdf(pdf_docs):
     text = ""
     for pdf in pdf_docs:
@@ -46,7 +45,7 @@ def split_text(text):
     )
     return splitter.split_text(text)
 
-# Create or load FAISS vector store
+# Create vector store
 def create_vector_store(text_chunks):
     embeddings = get_embeddings()
     return FAISS.from_texts(texts=text_chunks, embedding=embeddings)
