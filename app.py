@@ -2,93 +2,104 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 from PyPDF2 import PdfReader
-
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import FAISS
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-from langchain.text_splitter import CharacterTextSplitter
-from langchain.vectorstores import FAISS
+from langchain.chains.question_answering import load_qa_chain
+from langchain.prompts import PromptTemplate
 from langchain.chains import RetrievalQA
 
 # Load environment variables
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-# Initialize Gemini embeddings
-def get_embeddings():
-    return GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001",
-        google_api_key=GOOGLE_API_KEY
-    )
+# Embedding model
+embeddings = GoogleGenerativeAIEmbeddings(
+    model="models/embedding-001",
+    google_api_key=GOOGLE_API_KEY
+)
 
-# Use Gemini Pro (correct model name!)
-def get_llm():
-    return ChatGoogleGenerativeAI(
-        model="models/gemini-pro",  # ✅ This is the correct model name
-        google_api_key=GOOGLE_API_KEY
-    )
+# Gemini Pro LLM (v1beta-supported)
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.5-pro",
+    temperature=0.3,
+    google_api_key=GOOGLE_API_KEY
+)
 
-# Extract text from PDF
-def extract_text_from_pdf(pdf_docs):
+# Prompt template
+custom_prompt_template = """You are a helpful assistant. Use the following context to answer the question.
+If you don't know the answer, say "I don't know."
+
+Context:
+{context}
+
+Question:
+{question}
+
+Answer:"""
+
+PROMPT = PromptTemplate(
+    template=custom_prompt_template,
+    input_variables=["context", "question"]
+)
+
+# PDF processing
+def get_pdf_text(pdf_docs):
     text = ""
     for pdf in pdf_docs:
         reader = PdfReader(pdf)
         for page in reader.pages:
-            text += page.extract_text() or ""
+            text += page.extract_text()
     return text
 
 # Split text into chunks
-def split_text(text):
-    splitter = CharacterTextSplitter(
-        separator="\n",
-        chunk_size=1000,
-        chunk_overlap=200,
-        length_function=len
+def get_text_chunks(text):
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=10000,
+        chunk_overlap=1000
     )
     return splitter.split_text(text)
 
-# Create vector store
-def create_vector_store(text_chunks):
-    embeddings = get_embeddings()
-    return FAISS.from_texts(texts=text_chunks, embedding=embeddings)
+# Save vector store
+def save_vector_store(chunks):
+    db = FAISS.from_texts(chunks, embedding=embeddings)
+    db.save_local("faiss_index")
 
-# Ask question
-def get_response(db, query):
-    llm = get_llm()
+# Load vector store
+def load_vector_store():
+    return FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
+
+# QA Chain
+def get_qa_chain():
+    return load_qa_chain(llm, chain_type="stuff", prompt=PROMPT)
+
+# Handle user input
+def handle_user_input(query):
+    db = load_vector_store()
     retriever = db.as_retriever()
-    qa_chain = RetrievalQA.from_chain_type(
-        llm=llm,
-        chain_type="stuff",
-        retriever=retriever,
-        return_source_documents=False
-    )
-    return qa_chain.run(query)
+    qa = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=retriever, return_source_documents=True)
+    result = qa({"query": query})
+    st.write("### Answer:")
+    st.write(result["result"])
 
-# Streamlit app
+# Streamlit UI
 def main():
-    st.set_page_config(page_title="Chat with PDF - Gemini", layout="wide")
-    st.title("📄 Chat with your PDF using Gemini")
-    st.markdown("Upload one or more PDF files and ask questions about them!")
+    st.set_page_config("Chat with PDF - Gemini")
+    st.title("📄 Chat with PDF using Gemini Pro")
+
+    user_question = st.text_input("Ask a question based on your PDF:")
+    if user_question:
+        handle_user_input(user_question)
 
     with st.sidebar:
-        st.header("📎 Upload PDFs")
-        pdf_docs = st.file_uploader("Upload your PDF files", accept_multiple_files=True)
+        st.header("Upload PDF files")
+        pdf_docs = st.file_uploader("Choose PDF(s)", accept_multiple_files=True)
         if st.button("Process"):
-            if pdf_docs:
-                with st.spinner("Reading and indexing..."):
-                    raw_text = extract_text_from_pdf(pdf_docs)
-                    chunks = split_text(raw_text)
-                    vector_store = create_vector_store(chunks)
-                    st.session_state.vector_store = vector_store
-                st.success("✅ PDF processed successfully!")
-
-    query = st.text_input("💬 Ask a question about your PDF")
-    if query:
-        if "vector_store" not in st.session_state:
-            st.error("Please upload and process a PDF first.")
-        else:
-            with st.spinner("Thinking..."):
-                response = get_response(st.session_state.vector_store, query)
-                st.write("🧠 Answer:")
-                st.markdown(response)
+            with st.spinner("Processing..."):
+                raw_text = get_pdf_text(pdf_docs)
+                chunks = get_text_chunks(raw_text)
+                save_vector_store(chunks)
+                st.success("✅ PDFs processed and vector store saved!")
 
 if __name__ == "__main__":
     main()
