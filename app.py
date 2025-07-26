@@ -1,18 +1,18 @@
+import streamlit as st
+from PyPDF2 import PdfReader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.vectorstores.faiss import FAISS
+from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+from langchain.chains.question_answering import load_qa_chain
+from langchain.prompts import PromptTemplate
+from dotenv import load_dotenv
 import os
 import asyncio
 import sys
 
-if sys.platform.startswith('win') and sys.version_info >= (3, 8):
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-import streamlit as st
-from dotenv import load_dotenv
-from PyPDF2 import PdfReader
-from langchain.text_splitter import CharacterTextSplitter
-from langchain_community.vectorstores import FAISS
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-from langchain.chains.question_answering import load_qa_chain
-from langchain.prompts import PromptTemplate
-from langchain.chains import RetrievalQA
+# 🛠 Fix event loop issue in Streamlit (especially on Windows / Linux)
+if sys.platform.startswith('win') or sys.platform == "linux":
+    asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
 
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
